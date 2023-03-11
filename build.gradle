@@ -1,0 +1,62 @@
+plugins {
+    id 'java'
+    id 'application'
+    id 'java-library-distribution'
+    id "com.palantir.docker" version "0.34.0"
+    id "com.palantir.docker-run" version "0.34.0"
+}
+
+group 'org.app'
+version '1.0-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.1'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.8.1'
+}
+
+application {
+    mainClass = 'org.app.Main'
+}
+
+distZip.shouldRunAfter(build)
+
+jar {
+    // To keep jar clean
+    exclude 'META-INF/*.SF', 'META-INF/*.DSA', 'META-INF/*.RSA', 'META-INF/*.MF'
+
+    manifest {
+        attributes 'Main-Class': application.mainClass,
+                'Class-Path': configurations.runtimeClasspath.files.collect { it.name }.join(' ')
+    }
+}
+
+docker {
+    name "${project.name}:${project.version}"
+    files "pract_9-${project.version}.jar"
+    copySpec.from("build/libs").into("opt/app")
+}
+
+docker.dependsOn(build as Task)
+
+dockerRun {
+    name "${project.name}"
+    image "${project.name}:${project.version}"
+}
+
+tasks.register('execute') {
+    dependsOn 'docker'
+    dependsOn 'dockerRun'
+    tasks.findByName('dockerRun').mustRunAfter 'docker'
+
+    doLast {
+        println("The docker container ${project.name} was built and run successfully")
+    }
+}
+
+test {
+    useJUnitPlatform()
+}
